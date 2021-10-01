@@ -1,0 +1,43 @@
+{
+  "name": "@bitriel/multisig-wallet",
+  "version": "0.1.0",
+  "description": "MultiSignature Wallet",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitriel/multisig-wallet.git"
+  },
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/bitriel/multisig-wallet/issues"
+  },
+  "homepage": "https://github.com/bitriel/multisig-wallet#readme",
+  "keywords": [
+    "bitriel",
+    "multisig",
+    "wallet"
+  ],
+  "files": [
+    "contracts/MultiSigWallet.sol",
+    "contracts/MultiSigWalletFactory.sol",
+    "!contracts/test/**/*",
+    "build/contracts/MultiSigWallet.json",
+    "build/contracts/MultiSigWalletFactory.json"
+  ],
+  "scripts": {
+    "compile": "truffle compile",
+    "test": "truffle test",
+    "deploy": "truffle migrate --reset"
+  },
+  "engines": {
+    "node": ">=10"
+  },
+  "dependencies": {
+    "@truffle/hdwallet-provider": "^1.4.1",
+    "dotenv": "^10.0.0"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "3.4.1-solc-0.7",
+    "truffle-contract-size": "^2.0.1",
+    "truffle-plugin-verify": "^0.5.10"
+  }
+}
