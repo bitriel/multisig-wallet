@@ -13,7 +13,7 @@ contract MultiSigWalletFactory {
 
     /// @dev Returns number of wallets by creator.
     /// @param creator Contract creator.
-    /// @return Returns number of wallets by creator.
+    /// @return count Returns number of wallets by creator.
     function getWalletsCount(address creator) public view returns (uint256 count) {
         count = wallets[creator].length;
     }
@@ -21,9 +21,9 @@ contract MultiSigWalletFactory {
     /// @dev Allows verified creation of multisignature wallet.
     /// @param _owners List of initial owners.
     /// @param _required Number of required confirmations.
-    /// @return Returns wallet address.
-    function create(address[] _owners, uint _required) public returns (address wallet) {
-        wallet = new MultiSigWallet(_owners, _required);
+    /// @return wallet Returns wallet address.
+    function create(address[] memory _owners, uint8 _required) public returns (address wallet) {
+        wallet = address(new MultiSigWallet(_owners, _required));
         isWallet[wallet] = true;
         wallets[msg.sender].push(wallet);
         emit WalletCreated(msg.sender, wallet);
