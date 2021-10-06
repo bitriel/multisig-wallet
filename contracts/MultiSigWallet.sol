@@ -52,7 +52,7 @@ contract MultiSigWallet {
     ownerCount = uint8(_owners.length);
 
     for (uint8 i=0; i<_owners.length; i++) {
-      require(!owners[_owners[i]]);
+      require(!owners[_owners[i]], "initial owners are duplicated");
       owners[_owners[i]] = true;
     }
   }
@@ -64,7 +64,7 @@ contract MultiSigWallet {
   }
 
   function deposit(IERC20 _token, uint256 _value) external {
-    require(_value > 0, "Invalid token amount");
+    require(_value > 0, "deposited amount is zero");
     _token.safeTransferFrom(msg.sender, address(this), _value);
 
     emit TokenDeposited(msg.sender, _token, _value);
@@ -74,7 +74,7 @@ contract MultiSigWallet {
   /// @param _owner Address of new owner.
   function addOwner(address _owner) external
     isValid(_owner)
-    isWallet
+    isOwner(msg.sender)
     notOwner(_owner)
     validate(ownerCount + 1, required)
   {
@@ -87,7 +87,8 @@ contract MultiSigWallet {
   /// @dev Allows to remove an owner. Transaction has to be sent by wallet.
   /// @param _owner Address of owner.
   function removeOwner(address _owner) external
-    isWallet
+    isValid(_owner)
+    isOwner(msg.sender)
     isOwner(_owner)
   {
     delete owners[_owner];
@@ -102,7 +103,9 @@ contract MultiSigWallet {
   /// @param _owner Address of owner to be replaced.
   /// @param _newOwner Address of new owner.
   function replaceOwner(address _owner, address _newOwner) external
-    isWallet
+    isValid(_owner)
+    isValid(_newOwner)
+    isOwner(msg.sender)
     isOwner(_owner)
     notOwner(_newOwner)
   {
@@ -116,7 +119,7 @@ contract MultiSigWallet {
   /// @dev Allows to change the number of required confirmations. Transaction has to be sent by wallet.
   /// @param _required Number of required confirmations.
   function changeRequired(uint8 _required) public
-    isWallet
+    isOwner(msg.sender)
     validate(ownerCount, _required)
   {
     required = _required;
@@ -129,11 +132,11 @@ contract MultiSigWallet {
   /// @param _value transaction value in Wei.
   /// @param _data transaction data payload.
   /// @return txnId returns transaction ID.
-  function submit(address payable _to, uint256 _value, bytes calldata _data) external
+  function transfer(address payable _to, uint256 _value, bytes calldata _data) external
+    isEnough(_value)
     returns (uint256 txnId)
   {
     txnId = _addTransaction(address(0), _to, _value, _data);
-    emit TransactionSubmitted(txnId);
     approve(txnId);
   }
 
@@ -143,11 +146,11 @@ contract MultiSigWallet {
   /// @param _value transaction value in Wei.
   /// @param _data transaction data payload.
   /// @return txnId returns transaction ID.
-  function submitToken(address _token, address payable _to, uint256 _value, bytes calldata _data) external 
+  function transferToken(IERC20 _token, address payable _to, uint256 _value, bytes calldata _data) external 
+    isTokenEnough(_token, _value)
     returns (uint256 txnId) 
   {
-    txnId = _addTransaction(_token, _to, _value, _data);
-    emit TransactionSubmitted(txnId);
+    txnId = _addTransaction(address(_token), _to, _value, _data);
     approve(txnId);
   }
 
@@ -240,7 +243,7 @@ contract MultiSigWallet {
       approval: 0,
       executed: false
     });
-    // transactionCount++;
+    
     emit TransactionSubmitted(txnId);
   }
 
@@ -313,51 +316,55 @@ contract MultiSigWallet {
   //   transactionIds = temp;
   // }
 
-  modifier isWallet() {
-    require(msg.sender == address(this));
-    _;
-  }
-
   modifier notOwner(address _owner) {
-    require(!owners[_owner]);
+    require(!owners[_owner], "this address is one of the owners' wallet");
     _;
   }
 
   modifier isOwner(address _owner) {
-    require(owners[_owner]);
+    require(owners[_owner], "this address is not one of the owners' wallet");
     _;
   }
 
   modifier hasTransaction(uint _txnId) {
-    require(transactions[_txnId].to != address(0));
+    require(transactions[_txnId].to != address(0), "transaction is not exist");
     _;
   }
 
   modifier approved(uint _txnId, address _owner) {
-    require(approvals[_txnId][_owner]);
+    require(approvals[_txnId][_owner], "transaction has not been approved by this owner");
     _;
   }
 
   modifier notApproved(uint _txnId, address _owner) {
-    require(!approvals[_txnId][_owner]);
+    require(!approvals[_txnId][_owner], "transaction has been approved by this owner");
     _;
   }
 
   modifier notExecuted(uint _txnId) {
-    require(!transactions[_txnId].executed);
+    require(!transactions[_txnId].executed, "transaction is executed");
     _;
   }
 
   modifier isValid(address _address) {
-    require(_address != address(0));
+    require(_address != address(0), "this address is zero address");
     _;
   }
 
   modifier validate(uint8 _ownerCount, uint8 _required) {
-    require(_required != 0 && _ownerCount != 0 
-      && _ownerCount <= MAX_OWNER
-      && _required <= _ownerCount
+    require(_required > 1 && _ownerCount <= MAX_OWNER && _required <= _ownerCount,
+      "required and owner count is not sufficient"
     );
+    _;
+  }
+
+  modifier isEnough(uint256 _value) {
+    require(address(this).balance >= _value, "balance is not enough for transfer");
+    _;
+  }
+
+  modifier isTokenEnough(IERC20 _token, uint256 _value) {
+    require(_token.balanceOf(address(this)) >= _value, "BEP20 balance is not enough for transfer");
     _;
   }
 }
