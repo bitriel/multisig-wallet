@@ -23,8 +23,17 @@ contract MultiSigWallet {
   event OwnerRemoval(address indexed owner);
   event RequirementChanged(uint256 required);
 
+  enum Kind {
+    Transfer,
+    ChangeApprovals,
+    AddOwner,
+    RemoveOwner,
+    ReplaceOwner
+  }
+
   struct Transaction {
-    address payable to;
+    Kind kind;
+    address to;
     uint value;
     bytes data;
     address token;
@@ -63,68 +72,49 @@ contract MultiSigWallet {
       emit Deposited(msg.sender, msg.value);
   }
 
-  function deposit(IERC20 _token, uint256 _value) external {
-    require(_value > 0, "deposited amount is zero");
-    _token.safeTransferFrom(msg.sender, address(this), _value);
-
-    emit TokenDeposited(msg.sender, _token, _value);
-  }
-
   /// @dev Allows to add a new owner. Transaction has to be sent by wallet.
   /// @param _owner Address of new owner.
   function addOwner(address _owner) external
     isValid(_owner)
-    isOwner(msg.sender)
     notOwner(_owner)
     validate(ownerCount + 1, required)
+    returns (uint256 txnId)
   {
-    owners[_owner] = true;
-    ownerCount++;
-
-    emit NewOwnerAdded(_owner);
+    txnId = _addTransaction(Kind.AddOwner, address(0), address(0), 0, abi.encode(_owner));
+    approve(txnId);
   }
 
   /// @dev Allows to remove an owner. Transaction has to be sent by wallet.
   /// @param _owner Address of owner.
   function removeOwner(address _owner) external
-    isValid(_owner)
-    isOwner(msg.sender)
     isOwner(_owner)
+    returns (uint256 txnId)
   {
-    delete owners[_owner];
-    ownerCount--;
-    if (required > ownerCount)
-      changeRequired(ownerCount);
-
-    emit OwnerRemoval(_owner);
+    txnId = _addTransaction(Kind.RemoveOwner, address(0), address(0), 0, abi.encode(_owner));
+    approve(txnId);
   }
 
   /// @dev Allows to replace an owner with a new owner. Transaction has to be sent by wallet.
   /// @param _owner Address of owner to be replaced.
   /// @param _newOwner Address of new owner.
   function replaceOwner(address _owner, address _newOwner) external
-    isValid(_owner)
     isValid(_newOwner)
-    isOwner(msg.sender)
     isOwner(_owner)
     notOwner(_newOwner)
+    returns (uint256 txnId)
   {
-    delete owners[_owner];
-    owners[_newOwner] = true;
-
-    emit OwnerRemoval(_owner);
-    emit NewOwnerAdded(_newOwner);
+    txnId = _addTransaction(Kind.ReplaceOwner, address(0), address(0), 0, abi.encode(_owner, _newOwner));
+    approve(txnId);
   }
 
   /// @dev Allows to change the number of required confirmations. Transaction has to be sent by wallet.
   /// @param _required Number of required confirmations.
   function changeRequired(uint8 _required) public
-    isOwner(msg.sender)
     validate(ownerCount, _required)
+    returns (uint256 txnId)
   {
-    required = _required;
-
-    emit RequirementChanged(_required);
+    txnId = _addTransaction(Kind.ChangeApprovals, address(0), address(0), 0, abi.encode(_required));
+    approve(txnId);
   }
 
   /// @dev Allows an owner to submit and approve a transaction.
@@ -132,11 +122,12 @@ contract MultiSigWallet {
   /// @param _value transaction value in Wei.
   /// @param _data transaction data payload.
   /// @return txnId returns transaction ID.
-  function transfer(address payable _to, uint256 _value, bytes calldata _data) external
+  function transfer(address payable _to, uint256 _value, bytes memory _data) external
+    isValid(_to)
     isEnough(_value)
     returns (uint256 txnId)
   {
-    txnId = _addTransaction(address(0), _to, _value, _data);
+    txnId = _addTransaction(Kind.Transfer, address(0), _to, _value, _data);
     approve(txnId);
   }
 
@@ -146,11 +137,12 @@ contract MultiSigWallet {
   /// @param _value transaction value in Wei.
   /// @param _data transaction data payload.
   /// @return txnId returns transaction ID.
-  function transferToken(IERC20 _token, address payable _to, uint256 _value, bytes calldata _data) external 
+  function transferToken(IERC20 _token, address payable _to, uint256 _value, bytes memory _data) external 
+    isValid(_to)
     isTokenEnough(_token, _value)
     returns (uint256 txnId) 
   {
-    txnId = _addTransaction(address(_token), _to, _value, _data);
+    txnId = _addTransaction(Kind.Transfer, address(_token), _to, _value, _data);
     approve(txnId);
   }
 
@@ -163,6 +155,7 @@ contract MultiSigWallet {
   {
     transactions[_txnId].approval++;
     approvals[_txnId][msg.sender] = true;
+
     emit TransactionApproved(msg.sender, _txnId);
     execute(_txnId);
   }
@@ -176,6 +169,7 @@ contract MultiSigWallet {
   {
     transactions[_txnId].approval--;
     approvals[_txnId][msg.sender] = false;
+    
     emit ApprovalRevoked(msg.sender, _txnId);
   }
 
@@ -190,19 +184,44 @@ contract MultiSigWallet {
   {
     if (isConfirmed(_txnId)) {
       Transaction storage txn = transactions[_txnId];
-      bool result = false;
 
-      if(txn.token == address(0)) 
-        (result, ) = txn.to.call{value: txn.value}("");
-      else 
-        result = IERC20(txn.token).transfer(txn.to, txn.value);
-        
-      if (result) {
-        emit TransactionExecuted(_txnId);
-        txn.executed = true;
-      } else {
-        emit ExecutionFailed(_txnId);
+      if (txn.kind == Kind.ChangeApprovals) {
+        (required) = abi.decode(txn.data, (uint8));
+
+        emit RequirementChanged(required);
+      } else if (txn.kind == Kind.AddOwner) {
+        (address newOwner) = abi.decode(txn.data, (address));
+        owners[newOwner] = true;
+        ownerCount++;
+
+        emit NewOwnerAdded(newOwner);
+      } else if (txn.kind == Kind.RemoveOwner) {
+        (address oldOwner) = abi.decode(txn.data, (address));
+        delete owners[oldOwner];
+        ownerCount--;
+
+        emit OwnerRemoval(oldOwner);
+
+        if (required > ownerCount) {
+          required = ownerCount;
+
+          emit RequirementChanged(required);
+        }
+      } else if (txn.kind == Kind.ReplaceOwner) {
+        (address oldOwner, address newOwner) = abi.decode(txn.data, (address, address));
+        delete owners[oldOwner];
+        owners[newOwner] = true;
+
+        emit OwnerRemoval(oldOwner);
+        emit NewOwnerAdded(newOwner);
+      } else if (txn.kind == Kind.Transfer) {
+        if (txn.token == address(0)) 
+          payable(txn.to).transfer(txn.value);
+        else 
+          IERC20(txn.token).safeTransfer(payable(txn.to), txn.value);
       }
+      txn.executed = true;
+      emit TransactionExecuted(_txnId);
 
       return txn.executed;
     }
@@ -212,16 +231,7 @@ contract MultiSigWallet {
   /// @param _txnId transaction ID.
   /// @return status confirmation status.
   function isConfirmed(uint _txnId) public view returns (bool status) {
-    if (transactions[_txnId].approval >= required)
-      return true;
-
-    // uint count = 0;
-    //     for (uint i=0; i<owners.length; i++) {
-    //         if (confirmations[transactionId][owners[i]])
-    //             count += 1;
-    //         if (count == required)
-    //             return true;
-    //     }
+    status = transactions[_txnId].approval >= required;
   }
 
   /// @dev Adds a new transaction to the transaction mapping, if transaction does not exist yet.
@@ -230,12 +240,12 @@ contract MultiSigWallet {
   /// @param _value transaction value in Wei.
   /// @param _data transaction data payload.
   /// @return txnId returns transaction ID.
-  function _addTransaction(address _token, address payable _to, uint _value, bytes calldata _data) internal
-    isValid(_to)
+  function _addTransaction(Kind kind, address _token, address _to, uint _value, bytes memory _data) internal
     returns (uint txnId)
   {
     txnId = transactionCount++;
     transactions[txnId] = Transaction({
+      kind: kind,
       to: _to,
       value: _value,
       data: _data,
@@ -252,9 +262,6 @@ contract MultiSigWallet {
   /// @return count Number of approvals.
   function getApprovalCount(uint _txnId) external view returns (uint8 count) {
     count = transactions[_txnId].approval;
-    // for (uint i=0; i<owners.length; i++)
-    //   if (confirmations[_txnId][owners[i]])
-    //     count += 1;
   }
 
   /// @dev Returns total number of transactions which filers are applied.
@@ -317,31 +324,31 @@ contract MultiSigWallet {
   // }
 
   modifier notOwner(address _owner) {
-    require(!owners[_owner], "this address is one of the owners' wallet");
+    require(!owners[_owner], "this address is one of the owners");
     _;
   }
 
   modifier isOwner(address _owner) {
-    require(owners[_owner], "this address is not one of the owners' wallet");
+    require(owners[_owner], "this address is not one of the owners");
     _;
   }
 
-  modifier hasTransaction(uint _txnId) {
-    require(transactions[_txnId].to != address(0), "transaction is not exist");
+  modifier hasTransaction(uint256 _txnId) {
+    require(_txnId < transactionCount, "transaction is not exist");
     _;
   }
 
-  modifier approved(uint _txnId, address _owner) {
+  modifier approved(uint256 _txnId, address _owner) {
     require(approvals[_txnId][_owner], "transaction has not been approved by this owner");
     _;
   }
 
-  modifier notApproved(uint _txnId, address _owner) {
+  modifier notApproved(uint256 _txnId, address _owner) {
     require(!approvals[_txnId][_owner], "transaction has been approved by this owner");
     _;
   }
 
-  modifier notExecuted(uint _txnId) {
+  modifier notExecuted(uint256 _txnId) {
     require(!transactions[_txnId].executed, "transaction is executed");
     _;
   }

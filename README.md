@@ -1,2 +1,1 @@
-# multisig-wallet
-MultiSignature Wallet
+# Multi Signatures Wallet
