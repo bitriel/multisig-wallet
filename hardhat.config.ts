@@ -7,6 +7,7 @@ import { HardhatUserConfig } from "hardhat/config";
 // plugins
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-ethers"
+import '@openzeppelin/hardhat-upgrades';
 import '@typechain/hardhat'
 import "hardhat-contract-sizer";
 import "hardhat-deploy"
