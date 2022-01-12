@@ -7,6 +7,9 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   await deployments.deploy('MultiSigWalletFactory', {
     from: deployer,
+    args: [
+      deployer
+    ],
     log: true,
     deterministicDeployment: false
   })

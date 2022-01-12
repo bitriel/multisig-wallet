@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.7.0;
+pragma solidity >=0.7.0 <0.9.0;
 
-import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 // import "@openzeppelin/contracts-upgradeable/proxy/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+// import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import "./libraries/FullMath.sol";
 import "./interfaces/ISignatureValidator.sol";
@@ -16,8 +15,8 @@ import "./base/GuardManager.sol";
 
 /// @title Multisignature wallet - Allows multiple parties to agree on transactions before execution.
 contract MultiSigWalletV2 is 
-  Initializable,
-  OwnableUpgradeable,
+  // Initializable,
+  // OwnableUpgradeable,
   // UUPSUpgradeable,
   OwnerManager, 
   ModuleManager, 
@@ -65,8 +64,10 @@ contract MultiSigWalletV2 is
     address paymentToken,
     uint256 payment,
     address payable paymentReceiver
-  ) public initializer {
-    __Ownable_init();
+  ) public 
+  // initializer 
+  {
+    // __Ownable_init();
     setupOwners(_owners, _threshold);
     if(fallbackHandler != address(0)) _setupFallbackHandler(fallbackHandler);
     setupModules(to, data);

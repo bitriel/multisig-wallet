@@ -1,21 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.7.0;
+pragma solidity >=0.7.0 <0.9.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "./utils/Types.sol";
 import "./base/OwnerManager.sol";
 import "./base/Executor.sol";
 import "./handler/TokensHandler.sol";
 
 /// @title Multisignature wallet - Allows multiple parties to agree on transactions before execution.
-contract MultiSigWallet is OwnerManager, Executor, TokensHandler {
-  using SafeMath for uint256;
-  using SafeCast for uint8;
-  using SafeERC20 for IERC20;
-
+contract MultiSigWallet is OwnerManager, Executor, TokensHandler, Initializable {
   event Received(address indexed sender, uint256 value);
   event TransactionApproved(address indexed sender, uint256 indexed transactionId);
   event ApprovalRevoked(address indexed sender, uint256 indexed transactionId);
@@ -38,10 +31,10 @@ contract MultiSigWallet is OwnerManager, Executor, TokensHandler {
   mapping (uint256 => mapping (address => bool)) public approvals;
   uint256 public transactionCount;
 
-  /// @dev Contract constructor sets initial owners and required number of confirmations.
+  /// @dev sets initial owners and required number of confirmations.
   /// @param _owners List of initial owners.
   /// @param _required Number of required confirmations.
-  constructor(address[] memory _owners, uint8 _required) {
+  function initialize(address[] memory _owners, uint8 _required) public initializer {
     setupOwners(_owners, _required);
   }
 
