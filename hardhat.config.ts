@@ -14,9 +14,7 @@ import "hardhat-gas-reporter"
 import "hardhat-docgen"
 import "solidity-coverage"
 
-const accounts = {
-  mnemonic: process.env.MNEMONIC,
-}
+const accounts = process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [];
 
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
@@ -105,11 +103,9 @@ const config: HardhatUserConfig = {
     "selendra-testnet": {
       url: "https://rpc.testnet.selendra.org",
       accounts,
-      chainId: 2000,
+      chainId: 222,
       live: true,
       saveDeployments: true,
-      tags: ["staging"],
-      gasMultiplier: 2,
     },
   },
   paths: {
@@ -124,7 +120,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.7.6",
+        version: "0.8.4",
         settings: {
           optimizer: {
             enabled: true,

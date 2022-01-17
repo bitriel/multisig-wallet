@@ -5,16 +5,16 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployments, getNamedAccounts } = hre
   const { deployer, account2, account3 } = await getNamedAccounts()
 
-  await deployments.deploy('MultiSigWallet', {
-    from: deployer,
-    args: [
-      [deployer, account2, account3],
-      2
-    ],
-    log: true,
-    deterministicDeployment: false
-  })
+  // await deployments.deploy('MultiSigWalletV2', {
+  //   from: deployer,
+  //   args: [
+  //     [deployer, account2, account3],
+  //     2
+  //   ],
+  //   log: true,
+  //   deterministicDeployment: false
+  // })
 }
 
-deploy.tags = ['MultiSigWallet']
+deploy.tags = ['MultiSigWalletFlex']
 export default deploy
